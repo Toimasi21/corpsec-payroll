@@ -143,9 +143,10 @@ CorpSec Investigations & Guarding Services`;
       await createAuditLog({
         userId: createdById,
         action: 'JOB_OFFER_CREATE',
+        module: 'RECRUITMENT',
         entityType: 'RECRUITMENT',
         entityId: offer.id,
-        description: `Drafted job offer ${offerNumber} for ${candidate.fullName} (KES ${input.proposedSalary})`,
+        newValue: { offerNumber, proposedSalary: input.proposedSalary },
       });
     }
 
@@ -171,9 +172,10 @@ CorpSec Investigations & Guarding Services`;
     await createAuditLog({
       userId: approvedById,
       action: 'JOB_OFFER_APPROVE',
+      module: 'RECRUITMENT',
       entityType: 'RECRUITMENT',
       entityId: id,
-      description: `Approved job offer ${offer.offerNumber} for candidate ${offer.candidate.fullName}`,
+      newValue: { status: 'APPROVED' },
     });
 
     return updated;
@@ -216,9 +218,10 @@ CorpSec Investigations & Guarding Services`;
     await createAuditLog({
       userId: senderId,
       action: 'JOB_OFFER_SEND',
+      module: 'RECRUITMENT',
       entityType: 'RECRUITMENT',
       entityId: id,
-      description: `Dispatched job offer ${offer.offerNumber} to ${offer.candidate.fullName}`,
+      newValue: { status: 'SENT' },
     });
 
     return updated;

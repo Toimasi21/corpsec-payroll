@@ -1,116 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { requireAuth } from '@/lib/permissions';
-import { apiBadRequest, apiError, apiSuccess } from '@/lib/response';
+import { getCurrentUser } from '@/lib/auth';
+import { AttendanceReportService } from '@/lib/attendance/AttendanceReportService';
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireAuth('attendance.reports.view');
-    if ('errorResponse' in auth) return auth.errorResponse;
+    const user = await getCurrentUser(req);
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
 
     const { searchParams } = new URL(req.url);
-    const startDateStr = searchParams.get('startDate') || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const endDateStr = searchParams.get('endDate') || new Date().toISOString().split('T')[0];
-    const departmentId = searchParams.get('departmentId');
-    const stationId = searchParams.get('stationId');
-    const exportFormat = searchParams.get('export'); // 'csv' or null
+    const type = searchParams.get('type') || 'ATTENDANCE_REGISTER';
+    const format = (searchParams.get('format') || 'json') as 'json' | 'csv';
+    const startDate = searchParams.get('startDate') || undefined;
+    const endDate = searchParams.get('endDate') || undefined;
+    const departmentId = searchParams.get('departmentId') || undefined;
 
-    const startDate = new Date(startDateStr);
-    startDate.setHours(0, 0, 0, 0);
+    let result: any;
+    let filename = `attendance-report-${Date.now()}`;
 
-    const endDate = new Date(endDateStr);
-    endDate.setHours(23, 59, 59, 999);
+    switch (type) {
+      case 'OVERTIME':
+        filename = `overtime-report-${Date.now()}`;
+        result = await AttendanceReportService.generateOvertimeReport({
+          startDate,
+          endDate,
+          format,
+        });
+        break;
 
-    const empFilter: any = {
-      deletedAt: null,
-      isArchived: false,
-      ...(departmentId && departmentId !== 'ALL' ? { departmentId } : {}),
-      ...(stationId && stationId !== 'ALL' ? { stationId } : {}),
-    };
+      case 'COVERAGE':
+        filename = `station-coverage-report-${Date.now()}`;
+        result = await AttendanceReportService.generateCoverageReport(startDate || new Date(), format);
+        break;
 
-    const employees = await db.employee.findMany({
-      where: empFilter,
-      include: {
-        department: true,
-        station: true,
-        attendanceRecords: {
-          where: {
-            date: { gte: startDate, lte: endDate },
-          },
-        },
-      },
-      orderBy: { employeeNumber: 'asc' },
-    });
+      case 'ATTENDANCE_REGISTER':
+      default:
+        filename = `attendance-register-${Date.now()}`;
+        result = await AttendanceReportService.generateAttendanceRegister({
+          startDate,
+          endDate,
+          departmentId,
+          format,
+        });
+        break;
+    }
 
-    const summary = employees.map((emp) => {
-      const records = emp.attendanceRecords;
-      const scheduledDays = records.length;
-      let presentDays = 0;
-      let absentDays = 0;
-      let lateDays = 0;
-      let earlyDepartures = 0;
-      let leaveDays = 0;
-      let totalOvertimeMinutes = 0;
-      let totalWorkedMinutes = 0;
-
-      for (const r of records) {
-        if (r.attendanceStatus === 'PRESENT' || r.attendanceStatus === 'PRESENT_WITH_OVERTIME') presentDays++;
-        else if (r.attendanceStatus === 'ABSENT') absentDays++;
-        else if (r.attendanceStatus === 'LATE') {
-          presentDays++;
-          lateDays++;
-        } else if (r.attendanceStatus === 'ON_LEAVE' || r.attendanceStatus === 'SICK_LEAVE') leaveDays++;
-
-        if (r.earlyDepartureMinutes > 0) earlyDepartures++;
-        totalOvertimeMinutes += r.overtimeMinutes || 0;
-        totalWorkedMinutes += r.workedMinutes || 0;
-      }
-
-      const attendanceRate = scheduledDays > 0 ? Math.round((presentDays / scheduledDays) * 100) : 100;
-
-      return {
-        employeeId: emp.id,
-        employeeNumber: emp.employeeNumber,
-        employeeName: emp.fullName,
-        department: emp.department?.name || 'Unassigned',
-        station: emp.station?.name || 'Unassigned',
-        daysScheduled: scheduledDays,
-        daysPresent: presentDays,
-        daysAbsent: absentDays,
-        lateDays,
-        earlyDepartures,
-        leaveDays,
-        overtimeHours: Math.round((totalOvertimeMinutes / 60) * 10) / 10,
-        workedHours: Math.round((totalWorkedMinutes / 60) * 10) / 10,
-        attendanceRate,
-      };
-    });
-
-    if (exportFormat === 'csv') {
-      const csvHeader = 'EmployeeNumber,EmployeeName,Department,Station,DaysScheduled,DaysPresent,DaysAbsent,LateDays,EarlyDepartures,LeaveDays,OvertimeHours,WorkedHours,AttendanceRate\n';
-      const csvRows = summary
-        .map(
-          (s) =>
-            `"${s.employeeNumber}","${s.employeeName}","${s.department}","${s.station}",${s.daysScheduled},${s.daysPresent},${s.daysAbsent},${s.lateDays},${s.earlyDepartures},${s.leaveDays},${s.overtimeHours},${s.workedHours},${s.attendanceRate}%`
-        )
-        .join('\n');
-
-      return new NextResponse(csvHeader + csvRows, {
-        status: 200,
+    if (format === 'csv') {
+      return new NextResponse(result, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="attendance-report-${startDateStr}-to-${endDateStr}.csv"`,
+          'Content-Disposition': `attachment; filename="${filename}.csv"`,
         },
       });
     }
 
-    return apiSuccess({
-      period: { startDate: startDateStr, endDate: endDateStr },
-      totalEmployees: summary.length,
-      summary,
+    return NextResponse.json({
+      success: true,
+      data: result,
     });
   } catch (error: any) {
-    console.error('Error in attendance reports:', error);
-    return apiError(error.message || 'Failed to generate attendance report');
+    console.error('Error generating attendance report:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

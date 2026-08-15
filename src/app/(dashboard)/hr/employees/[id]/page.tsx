@@ -43,6 +43,10 @@ import {
   ExternalLink,
   CalendarDays,
   Printer,
+  Award,
+  Target,
+  TrendingUp,
+  GraduationCap,
 } from 'lucide-react';
 import {
   EmployeeData,
@@ -133,6 +137,18 @@ export default function EmployeeProfilePage({ params }: { params: { id: string }
   const [activeReceiptModal, setActiveReceiptModal] = useState<any | null>(null);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
 
+  // Performance & Appraisals State (Phase 14)
+  const [employeeReviews, setEmployeeReviews] = useState<any[]>([]);
+  const [employeeGoals, setEmployeeGoals] = useState<any[]>([]);
+  const [employeeDevPlans, setEmployeeDevPlans] = useState<any[]>([]);
+  const [isLoadingPerformance, setIsLoadingPerformance] = useState(false);
+
+  // Training & Skills State (Phase 15)
+  const [employeeSkills, setEmployeeSkills] = useState<any[]>([]);
+  const [employeeCertificates, setEmployeeCertificates] = useState<any[]>([]);
+  const [employeeTrainings, setEmployeeTrainings] = useState<any[]>([]);
+  const [isLoadingTraining, setIsLoadingTraining] = useState(false);
+
   useEffect(() => {
     fetchEmployee();
     loadOrgUnits();
@@ -141,7 +157,51 @@ export default function EmployeeProfilePage({ params }: { params: { id: string }
     fetchEmployeeCompensation();
     fetchEmployeePayslips();
     fetchEmployeePayments();
+    fetchEmployeePerformance();
+    fetchEmployeeTrainingData();
   }, [params.id]);
+
+  const fetchEmployeeTrainingData = async () => {
+    try {
+      setIsLoadingTraining(true);
+      const [skillsRes, certsRes, enrRes] = await Promise.all([
+        fetch(`/api/training/skills?employeeId=${params.id}`),
+        fetch(`/api/training/certificates?employeeId=${params.id}`),
+        fetch(`/api/training/enrollments?employeeId=${params.id}`),
+      ]);
+      const skillsData = await skillsRes.json();
+      const certsData = await certsRes.json();
+      const enrData = await enrRes.json();
+      if (skillsData.success) setEmployeeSkills(skillsData.data.skills || []);
+      if (certsData.success) setEmployeeCertificates(certsData.data.certificates || []);
+      if (enrData.success) setEmployeeTrainings(enrData.data.enrollments || []);
+    } catch (err) {
+      console.error('Error fetching employee training records:', err);
+    } finally {
+      setIsLoadingTraining(false);
+    }
+  };
+
+  const fetchEmployeePerformance = async () => {
+    try {
+      setIsLoadingPerformance(true);
+      const [revRes, goalRes, devRes] = await Promise.all([
+        fetch(`/api/performance/reviews?employeeId=${params.id}`),
+        fetch(`/api/performance/goals?employeeId=${params.id}`),
+        fetch(`/api/performance/development?employeeId=${params.id}`),
+      ]);
+      const revData = await revRes.json();
+      const goalData = await goalRes.json();
+      const devData = await devRes.json();
+      if (revData.success) setEmployeeReviews(revData.data.reviews || []);
+      if (goalData.success) setEmployeeGoals(goalData.data.goals || []);
+      if (devData.success) setEmployeeDevPlans(devData.data.plans || []);
+    } catch (err) {
+      console.error('Error fetching employee performance records:', err);
+    } finally {
+      setIsLoadingPerformance(false);
+    }
+  };
 
   const fetchEmployeePayments = async () => {
     try {
@@ -511,6 +571,9 @@ export default function EmployeeProfilePage({ params }: { params: { id: string }
     { id: 'payslips', label: `Payslips History (${employeePayslips.length})` },
     { id: 'statutory', label: 'Statutory Information' },
     { id: 'documents', label: `Documents (${employee.documents?.length || 0})` },
+    { id: 'performance', label: `Performance & Appraisals (${employeeReviews.length})` },
+    { id: 'skills', label: `Skills & Competencies (${employeeSkills.length})` },
+    { id: 'training', label: `Training & Certificates (${employeeTrainings.length})` },
     { id: 'history', label: `Timeline (${employee.history?.length || 0})` },
   ];
 
@@ -2139,6 +2202,328 @@ export default function EmployeeProfilePage({ params }: { params: { id: string }
               <p style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
                 Payslips are generated automatically upon payroll calculation under <Link href="/payroll/runs" style={{ color: '#2563eb' }}>Payroll Runs</Link>.
               </p>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* 11. Performance, Goals & Appraisals (Phase 14) */}
+      {activeTab === 'performance' && (
+        <Card
+          title="Performance Appraisals & Development Plans"
+          subtitle="Multi-cycle evaluation scores, SMART goal achievements, competencies and PIP records"
+        >
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '1rem' }}>
+            <Link href="/performance" style={{ textDecoration: 'none' }}>
+              <Button variant="outline" size="sm" leftIcon={<Award size={14} />}>
+                Performance Command Center
+              </Button>
+            </Link>
+          </div>
+
+          {isLoadingPerformance ? (
+            <div style={{ padding: '2rem 0', textAlign: 'center' }}>
+              <Spinner fullHeight message="Loading employee performance records..." />
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {/* Reviews Summary Section */}
+              <div>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Award size={16} color="#d97706" /> Appraisal Reviews ({employeeReviews.length})
+                </h4>
+                {employeeReviews.length > 0 ? (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left', color: '#475569' }}>
+                          <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700 }}>Review #</th>
+                          <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700 }}>Cycle</th>
+                          <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700 }}>Reviewer</th>
+                          <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700, textAlign: 'center' }}>Status</th>
+                          <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700, textAlign: 'center' }}>Goals / KPIs / Comp</th>
+                          <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700, textAlign: 'center' }}>Score</th>
+                          <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700, textAlign: 'right' }}>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {employeeReviews.map((rev: any) => (
+                          <tr key={rev.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '0.625rem 0.875rem', fontFamily: 'monospace', fontWeight: 700, color: '#d97706' }}>
+                              {rev.reviewNumber}
+                            </td>
+                            <td style={{ padding: '0.625rem 0.875rem', fontWeight: 600, color: '#0f172a' }}>
+                              {rev.cycle?.name}
+                            </td>
+                            <td style={{ padding: '0.625rem 0.875rem', color: '#64748b' }}>
+                              {rev.reviewer?.fullName || 'Unassigned'}
+                            </td>
+                            <td style={{ padding: '0.625rem 0.875rem', textAlign: 'center' }}>
+                              <Badge variant={rev.status === 'COMPLETED' ? 'success' : 'neutral'} size="sm">
+                                {rev.status}
+                              </Badge>
+                            </td>
+                            <td style={{ padding: '0.625rem 0.875rem', textAlign: 'center', fontFamily: 'monospace', fontSize: '0.75rem', color: '#64748b' }}>
+                              {rev.goalsScore ?? '—'} / {rev.kpisScore ?? '—'} / {rev.competenciesScore ?? '—'}
+                            </td>
+                            <td style={{ padding: '0.625rem 0.875rem', textAlign: 'center', fontFamily: 'monospace', fontWeight: 800, color: '#d97706' }}>
+                              {rev.isCalibrated && rev.calibratedScore ? rev.calibratedScore : rev.overallScore ? `${rev.overallScore} / 5.0` : 'Pending'}
+                            </td>
+                            <td style={{ padding: '0.625rem 0.875rem', textAlign: 'right' }}>
+                              <Link href={`/performance/reviews/${rev.id}`} style={{ textDecoration: 'none' }}>
+                                <Button variant="outline" size="sm" leftIcon={<Eye size={12} />}>
+                                  View
+                                </Button>
+                              </Link>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p style={{ fontSize: '0.8125rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                    No performance reviews initialized for this employee yet.
+                  </p>
+                )}
+              </div>
+
+              {/* Goals Section */}
+              <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '1.25rem' }}>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Target size={16} color="#2563eb" /> Assigned SMART Goals ({employeeGoals.length})
+                </h4>
+                {employeeGoals.length > 0 ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.75rem' }}>
+                    {employeeGoals.map((g: any) => (
+                      <div key={g.id} style={{ padding: '0.875rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.5rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>
+                          <span style={{ fontFamily: 'monospace' }}>{g.goalNumber}</span>
+                          <span style={{ fontWeight: 600, color: '#2563eb' }}>{g.weight}% Weight</span>
+                        </div>
+                        <div style={{ fontWeight: 700, fontSize: '0.8125rem', color: '#0f172a' }}>{g.title}</div>
+                        <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#64748b' }}>
+                          Progress: <strong>{g.progressPercentage}%</strong>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: '0.8125rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                    No SMART goals recorded for this employee.
+                  </p>
+                )}
+              </div>
+
+              {/* Development Plans Section */}
+              <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '1.25rem' }}>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <TrendingUp size={16} color="#059669" /> Development Plans &amp; PIPs ({employeeDevPlans.length})
+                </h4>
+                {employeeDevPlans.length > 0 ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.75rem' }}>
+                    {employeeDevPlans.map((dp: any) => (
+                      <div key={dp.id} style={{ padding: '0.875rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.5rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>
+                          <span style={{ fontFamily: 'monospace' }}>{dp.planNumber}</span>
+                          <Badge variant={dp.planType === 'PIP' ? 'danger' : 'neutral'} size="sm">
+                            {dp.planType}
+                          </Badge>
+                        </div>
+                        <div style={{ fontWeight: 700, fontSize: '0.8125rem', color: '#0f172a' }}>{dp.objective}</div>
+                        <div style={{ marginTop: '0.25rem', fontSize: '0.75rem', color: '#64748b' }}>
+                          Skill Gap: {dp.skillGap}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: '0.8125rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                    No active development plans or PIPs recorded.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Skills Tab */}
+      {activeTab === 'skills' && (
+        <Card
+          title="Skills & Competencies Inventory"
+          subtitle="Acquired technical proficiencies, tactical certifications, and competency ratings"
+        >
+          {isLoadingTraining ? (
+            <div style={{ padding: '2rem', display: 'flex', justifyContent: 'center' }}>
+              <Spinner size="md" />
+            </div>
+          ) : employeeSkills.length === 0 ? (
+            <p style={{ fontSize: '0.8125rem', color: '#94a3b8', fontStyle: 'italic', padding: '1rem 0' }}>
+              No skills logged for this employee. Skills are automatically acquired when the employee completes accredited training courses.
+            </p>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.75rem', marginTop: '0.5rem' }}>
+              {employeeSkills.map((sk: any) => (
+                <div key={sk.id} style={{ padding: '0.875rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.375rem' }}>
+                    <span style={{ fontWeight: 700, fontSize: '0.875rem', color: '#0f172a' }}>{sk.skillName}</span>
+                    <Badge variant={sk.level === 'EXPERT' ? 'danger' : sk.level === 'ADVANCED' ? 'warning' : 'info'} size="sm">
+                      {sk.level}
+                    </Badge>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                    Source: <strong>{sk.source?.replace('_', ' ')}</strong>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.25rem' }}>
+                    Acquired: {new Date(sk.dateAcquired).toLocaleDateString()}
+                  </div>
+                  {sk.certificate && (
+                    <div style={{ marginTop: '0.375rem', fontSize: '0.75rem', color: '#4f46e5', fontFamily: 'monospace' }}>
+                      Cert: {sk.certificate.certificateNumber}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Training & Certificates Tab */}
+      {activeTab === 'training' && (
+        <Card
+          title="Training History & Official Certifications"
+          subtitle="Historical log of attended training cohorts, assessment scores, and active credential badges"
+        >
+          {isLoadingTraining ? (
+            <div style={{ padding: '2rem', display: 'flex', justifyContent: 'center' }}>
+              <Spinner size="md" />
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '0.5rem' }}>
+              {/* Issued Certificates */}
+              <div>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Award size={16} color="#4f46e5" /> Issued Credential Badges ({employeeCertificates.length})
+                </h4>
+                {employeeCertificates.length > 0 ? (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left', color: '#475569' }}>
+                          <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700 }}>Certificate #</th>
+                          <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700 }}>Course</th>
+                          <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700 }}>Issue Date</th>
+                          <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700 }}>Expiry Date</th>
+                          <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700, textAlign: 'center' }}>Status</th>
+                          <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700, textAlign: 'right' }}>Verify</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {employeeCertificates.map((c: any) => {
+                          const isExpired = c.expiryDate ? new Date() > new Date(c.expiryDate) : false;
+                          return (
+                            <tr key={c.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                              <td style={{ padding: '0.625rem 0.875rem', fontFamily: 'monospace', fontWeight: 700, color: '#4f46e5' }}>
+                                {c.certificateNumber}
+                              </td>
+                              <td style={{ padding: '0.625rem 0.875rem', fontWeight: 600, color: '#0f172a' }}>
+                                {c.course?.title}
+                              </td>
+                              <td style={{ padding: '0.625rem 0.875rem', color: '#64748b' }}>
+                                {new Date(c.issueDate).toLocaleDateString()}
+                              </td>
+                              <td style={{ padding: '0.625rem 0.875rem', color: '#64748b' }}>
+                                {c.expiryDate ? (
+                                  <span style={{ color: isExpired ? '#e11d48' : '#0f172a' }}>
+                                    {new Date(c.expiryDate).toLocaleDateString()}
+                                  </span>
+                                ) : (
+                                  <span style={{ color: '#059669', fontWeight: 600 }}>Lifetime</span>
+                                )}
+                              </td>
+                              <td style={{ padding: '0.625rem 0.875rem', textAlign: 'center' }}>
+                                <Badge variant={c.status === 'REVOKED' ? 'danger' : isExpired ? 'danger' : 'success'} size="sm">
+                                  {c.status === 'REVOKED' ? 'REVOKED' : isExpired ? 'EXPIRED' : 'ACTIVE'}
+                                </Badge>
+                              </td>
+                              <td style={{ padding: '0.625rem 0.875rem', textAlign: 'right' }}>
+                                <Link
+                                  href={`/training/certificates/verify/${c.certificateNumber}`}
+                                  target="_blank"
+                                  style={{ textDecoration: 'none', color: '#4f46e5', fontWeight: 600, fontSize: '0.75rem' }}
+                                >
+                                  Public Link →
+                                </Link>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p style={{ fontSize: '0.8125rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                    No certificates issued for this employee yet.
+                  </p>
+                )}
+              </div>
+
+              {/* Training Enrollment Records */}
+              <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '1.25rem' }}>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <GraduationCap size={16} color="#059669" /> Enrolled Training Courses ({employeeTrainings.length})
+                </h4>
+                {employeeTrainings.length > 0 ? (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left', color: '#475569' }}>
+                          <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700 }}>Enrollment #</th>
+                          <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700 }}>Course</th>
+                          <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700 }}>Session Schedule</th>
+                          <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700, textAlign: 'center' }}>Status</th>
+                          <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700, textAlign: 'center' }}>Score</th>
+                          <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700, textAlign: 'center' }}>Result</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {employeeTrainings.map((enr: any) => (
+                          <tr key={enr.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '0.625rem 0.875rem', fontFamily: 'monospace', fontWeight: 700, color: '#059669' }}>
+                              {enr.enrollmentNumber}
+                            </td>
+                            <td style={{ padding: '0.625rem 0.875rem', fontWeight: 600, color: '#0f172a' }}>
+                              {enr.course?.title}
+                            </td>
+                            <td style={{ padding: '0.625rem 0.875rem', color: '#64748b' }}>
+                              {enr.session?.startDate ? new Date(enr.session.startDate).toLocaleDateString() : 'TBD'}
+                            </td>
+                            <td style={{ padding: '0.625rem 0.875rem', textAlign: 'center' }}>
+                              <Badge variant={enr.status === 'COMPLETED' ? 'success' : enr.status === 'ENROLLED' ? 'info' : 'neutral'} size="sm">
+                                {enr.status}
+                              </Badge>
+                            </td>
+                            <td style={{ padding: '0.625rem 0.875rem', textAlign: 'center', fontFamily: 'monospace', fontWeight: 700 }}>
+                              {enr.finalScore !== null ? `${enr.finalScore}%` : '—'}
+                            </td>
+                            <td style={{ padding: '0.625rem 0.875rem', textAlign: 'center' }}>
+                              <Badge variant={enr.finalResult === 'PASS' ? 'success' : enr.finalResult === 'FAIL' ? 'danger' : 'neutral'} size="sm">
+                                {enr.finalResult || 'Pending'}
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p style={{ fontSize: '0.8125rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                    No training session enrollments recorded.
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </Card>

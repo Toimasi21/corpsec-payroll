@@ -1,70 +1,55 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { requireAuth, errorResponse, successResponse } from '@/lib/auth-helpers';
-import { logAudit } from '@/lib/audit';
+import { LeaveRequestService } from '@/lib/leave/LeaveRequestService';
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    await requireAuth(['leave.view']);
-
-    const leaveRequest = await db.leaveRequest.findUnique({
-      where: { id: params.id },
-      include: {
-        employee: {
-          select: {
-            id: true,
-            employeeNumber: true,
-            fullName: true,
-            gender: true,
-            jobTitle: true,
-            employmentDate: true,
-            department: { select: { name: true, code: true } },
-            branch: { select: { name: true, code: true } },
-            station: { select: { name: true, code: true } },
-            position: { select: { title: true, code: true } },
-            supervisor: { select: { id: true, fullName: true, employeeNumber: true } },
-          },
-        },
-        leaveType: true,
-        reliever: {
-          select: { id: true, fullName: true, employeeNumber: true, jobTitle: true },
-        },
-        reviewedBy: {
-          select: { id: true, firstName: true, lastName: true, email: true },
-        },
-        cancelledBy: {
-          select: { id: true, firstName: true, lastName: true, email: true },
-        },
-        documents: {
-          include: {
-            uploadedBy: { select: { id: true, firstName: true, lastName: true } },
-          },
-        },
-      },
-    });
-
-    if (!leaveRequest) {
-      return errorResponse('Leave request not found.', 404);
+    const user = await getCurrentUser(req);
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Also fetch current entitlement balance for this employee and leave type
-    const entitlement = await db.leaveEntitlement.findUnique({
-      where: {
-        employeeId_leaveTypeId_leaveYear: {
-          employeeId: leaveRequest.employeeId,
-          leaveTypeId: leaveRequest.leaveTypeId,
-          leaveYear: leaveRequest.leaveYear,
+    const request = await db.leaveRequest.findUnique({
+      where: { id: params.id },
+      include: {
+        leaveType: true,
+        employee: {
+          include: { department: true, position: true, branch: true, station: true },
         },
+        reliever: { select: { id: true, fullName: true } },
+        reviewedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+        managerApprovedBy: { select: { id: true, firstName: true, lastName: true } },
+        hrApprovedBy: { select: { id: true, firstName: true, lastName: true } },
+        documents: true,
       },
     });
 
-    return successResponse({
-      ...leaveRequest,
-      currentEntitlement: entitlement,
-    });
+    if (!request) {
+      return NextResponse.json({ success: false, error: 'Leave request not found.' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, data: { request } });
   } catch (error: any) {
-    if (error.status) return errorResponse(error.message, error.status);
-    console.error('Fetch leave request error:', error);
-    return errorResponse('Failed to fetch leave request details.');
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const user = await getCurrentUser(req);
+    if (!user || !user.employeeId) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await req.json();
+    if (body.action === 'WITHDRAW') {
+      const result = await LeaveRequestService.withdrawRequest(params.id, user.employeeId, body.reason);
+      return NextResponse.json({ success: true, data: { request: result } });
+    }
+
+    return NextResponse.json({ success: false, error: 'Invalid action.' }, { status: 400 });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
   }
 }

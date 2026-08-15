@@ -298,9 +298,11 @@ export class CandidateService {
       await createAuditLog({
         userId,
         action: 'CANDIDATE_STAGE_CHANGE',
+        module: 'RECRUITMENT',
         entityType: 'RECRUITMENT',
         entityId: id,
-        description: `Moved candidate ${candidate.applicationNumber} (${candidate.fullName}) from ${previousStage} to ${newStage}`,
+        previousValue: { stage: previousStage },
+        newValue: { stage: newStage },
       });
     }
 
@@ -344,9 +346,10 @@ export class CandidateService {
       await createAuditLog({
         userId,
         action: 'CANDIDATE_SCREENING',
+        module: 'RECRUITMENT',
         entityType: 'RECRUITMENT',
         entityId: input.candidateId,
-        description: `Screened candidate ${candidate.applicationNumber}: ${input.screeningStatus} (Score: ${input.screeningScore ?? 'N/A'})`,
+        newValue: { screeningStatus: input.screeningStatus, score: input.screeningScore },
       });
     }
 

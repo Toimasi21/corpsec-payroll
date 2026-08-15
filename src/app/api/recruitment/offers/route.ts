@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
       auth.session.userId
     );
 
-    return apiSuccess({ offer }, 201);
+    return apiSuccess({ offer }, undefined, 201);
   } catch (error: any) {
     console.error('Error creating job offer:', error);
     return apiBadRequest(error.message || 'Failed to create job offer');

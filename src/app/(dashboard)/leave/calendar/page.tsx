@@ -1,288 +1,296 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
-import {
-  Calendar as CalendarIcon,
-  ChevronLeft,
-  ChevronRight,
-  Filter,
-  Users,
-  ShieldAlert,
-  Sparkles,
-  Building,
-  MapPin,
-  Clock,
-  ArrowUpRight,
-} from 'lucide-react';
+import { Breadcrumb } from '@/components/layout/Breadcrumb';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { Select } from '@/components/ui/Select';
+import { Spinner } from '@/components/ui/Spinner';
+import { useToast } from '@/components/ui/ToastContext';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Users, Filter, Layers } from 'lucide-react';
 
 export default function LeaveCalendarPage() {
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [calendarData, setCalendarData] = useState<any>(null);
+  const { toastError } = useToast() as any;
+  const [events, setEvents] = useState<any[]>([]);
+  const [leaveTypes, setLeaveTypes] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
-  const [branches, setBranches] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Filters
-  const [selectedDept, setSelectedDept] = useState('');
-  const [selectedBranch, setSelectedBranch] = useState('');
-
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth() + 1; // 1-12
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [departmentFilter, setDepartmentFilter] = useState('ALL');
+  const [leaveTypeFilter, setLeaveTypeFilter] = useState('ALL');
+  const [viewMode, setViewMode] = useState<'MONTH' | 'LIST'>('MONTH');
 
   useEffect(() => {
-    const fetchLookups = async () => {
-      try {
-        const [dRes, bRes] = await Promise.all([
-          fetch('/api/departments?status=ACTIVE'),
-          fetch('/api/branches?status=ACTIVE'),
-        ]);
-        if (dRes.ok) {
-          const d = await dRes.json();
-          if (d.success) setDepartments(d.data || []);
-        }
-        if (bRes.ok) {
-          const d = await bRes.json();
-          if (d.success) setBranches(d.data || []);
-        }
-      } catch (err) {
-        console.error('Error fetching lookups:', err);
-      }
-    };
-    fetchLookups();
+    fetchFilters();
   }, []);
 
-  const fetchCalendar = async () => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams();
-      params.set('year', String(year));
-      params.set('month', String(month));
-      if (selectedDept) params.set('departmentId', selectedDept);
-      if (selectedBranch) params.set('branchId', selectedBranch);
+  useEffect(() => {
+    fetchEvents();
+  }, [currentDate, departmentFilter, leaveTypeFilter]);
 
-      const res = await fetch(`/api/leave/calendar?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) {
-          setCalendarData(data.data);
-        }
-      }
+  const fetchFilters = async () => {
+    try {
+      const [tRes, dRes] = await Promise.all([
+        fetch('/api/leave/types'),
+        fetch('/api/departments'),
+      ]);
+      const [tj, dj] = await Promise.all([tRes.json(), dRes.json()]);
+      if (tj.success) setLeaveTypes(tj.data.leaveTypes || []);
+      if (dj.success) setDepartments(dj.data.departments || []);
     } catch (err) {
-      console.error('Error fetching calendar data:', err);
-    } finally {
-      setLoading(false);
+      console.error(err);
     }
   };
 
-  useEffect(() => {
-    fetchCalendar();
-  }, [currentDate, selectedDept, selectedBranch]);
+  const fetchEvents = async () => {
+    try {
+      setIsLoading(true);
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+
+      const start = new Date(year, month, 1);
+      const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
+
+      const params = new URLSearchParams({
+        startDate: start.toISOString(),
+        endDate: end.toISOString(),
+      });
+
+      if (departmentFilter !== 'ALL') params.append('departmentId', departmentFilter);
+      if (leaveTypeFilter !== 'ALL') params.append('leaveTypeId', leaveTypeFilter);
+
+      const res = await fetch(`/api/leave/calendar?${params.toString()}`);
+      const json = await res.json();
+      if (json.success) setEvents(json.data.events);
+    } catch (err) {
+      console.error('Failed to load calendar events', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handlePrevMonth = () => {
-    setCurrentDate(new Date(year, month - 2, 1));
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   };
 
   const handleNextMonth = () => {
-    setCurrentDate(new Date(year, month, 1));
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
   };
 
   const handleToday = () => {
     setCurrentDate(new Date());
   };
 
-  // Calendar Grid Builder
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const firstDayOfWeek = new Date(year, month - 1, 1).getDay(); // 0=Sun, 6=Sat
-
-  // Format date helper: YYYY-MM-DD
-  const formatCellDate = (dayNumber: number) => {
-    const mm = String(month).padStart(2, '0');
-    const dd = String(dayNumber).padStart(2, '0');
-    return `${year}-${mm}-${dd}`;
-  };
-
-  const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
-  ];
+  // Generate Month Grid
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  const firstDayIndex = new Date(year, month, 1).getDay(); // 0 = Sun
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const monthName = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
   return (
-    <div className="space-y-6">
+    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg">
-              <CalendarIcon className="h-6 w-6" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Visual Leave & Availability Calendar</h1>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Track team off-duty periods, Kenya public holidays, and guarding post staffing availability in real-time.
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link href="/leave/requests" className="btn btn-secondary text-sm">
-            Leave Requests
-          </Link>
-          <Link href="/leave/approvals" className="btn btn-primary text-sm">
-            Approvals Desk
-          </Link>
-        </div>
-      </div>
-
-      {/* Calendar Controls & Quick Metrics */}
-      <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
-        {/* Month Navigation */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-            <button
-              onClick={handlePrevMonth}
-              className="p-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-colors"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <span className="text-xs font-bold text-slate-900 dark:text-white px-3 min-w-[140px] text-center">
-              {monthNames[month - 1]} {year}
-            </span>
-            <button
-              onClick={handleNextMonth}
-              className="p-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-colors"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-          <button onClick={handleToday} className="btn btn-secondary py-1.5 px-3 text-xs">
-            Current Month
-          </button>
+          <Breadcrumb
+            items={[
+              { label: 'Leave Management', href: '/leave' },
+              { label: 'Corporate Leave Calendar' },
+            ]}
+          />
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a', marginTop: '0.25rem' }}>
+            Corporate Leave Calendar
+          </h1>
+          <p style={{ fontSize: '0.875rem', color: '#64748b' }}>
+            Visualize cross-departmental staff leave distribution, team coverage, and planned absences
+          </p>
         </div>
 
-        {/* Filter Dropdowns */}
-        <div className="flex items-center gap-2.5 w-full md:w-auto">
-          <select
-            value={selectedDept}
-            onChange={(e) => setSelectedDept(e.target.value)}
-            className="text-xs py-2 px-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
-          >
-            <option value="">All Departments</option>
-            {departments.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={selectedBranch}
-            onChange={(e) => setSelectedBranch(e.target.value)}
-            className="text-xs py-2 px-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
-          >
-            <option value="">All Branches</option>
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <Button variant={viewMode === 'MONTH' ? 'primary' : 'outline'} size="sm" onClick={() => setViewMode('MONTH')}>
+            Month View
+          </Button>
+          <Button variant={viewMode === 'LIST' ? 'primary' : 'outline'} size="sm" onClick={() => setViewMode('LIST')}>
+            List View
+          </Button>
         </div>
       </div>
 
-      {/* Monthly Calendar Grid */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden p-4">
-        {/* Day Headers (Sun - Sat) */}
-        <div className="grid grid-cols-7 gap-2 text-center text-xs font-bold text-slate-400 dark:text-slate-500 pb-2 border-b border-slate-100 dark:border-slate-800">
-          <div>Sun</div>
-          <div>Mon</div>
-          <div>Tue</div>
-          <div>Wed</div>
-          <div>Thu</div>
-          <div>Fri</div>
-          <div>Sat</div>
+      {/* Navigation and Filters Bar */}
+      <Card>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <Button variant="outline" size="sm" onClick={handlePrevMonth}>
+              <ChevronLeft size={16} />
+            </Button>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', minWidth: '180px', textAlign: 'center' }}>
+              {monthName}
+            </h2>
+            <Button variant="outline" size="sm" onClick={handleNextMonth}>
+              <ChevronRight size={16} />
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleToday}>
+              Today
+            </Button>
+          </div>
+
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            <div style={{ width: '180px' }}>
+              <Select
+                value={departmentFilter}
+                onChange={(e) => setDepartmentFilter(e.target.value)}
+                options={[
+                  { value: 'ALL', label: 'All Departments' },
+                  ...departments.map((d) => ({ value: d.id, label: d.name })),
+                ]}
+              />
+            </div>
+            <div style={{ width: '180px' }}>
+              <Select
+                value={leaveTypeFilter}
+                onChange={(e) => setLeaveTypeFilter(e.target.value)}
+                options={[
+                  { value: 'ALL', label: 'All Leave Types' },
+                  ...leaveTypes.map((lt) => ({ value: lt.id, label: lt.name })),
+                ]}
+              />
+            </div>
+          </div>
         </div>
+      </Card>
 
-        {/* Grid Cells */}
-        <div className="grid grid-cols-7 gap-2 pt-2">
-          {/* Leading Empty Cells */}
-          {Array.from({ length: firstDayOfWeek }).map((_, idx) => (
-            <div
-              key={`empty-${idx}`}
-              className="min-h-[100px] rounded-xl bg-slate-50/50 dark:bg-slate-950/20 border border-transparent"
-            />
-          ))}
+      {/* Calendar View Container */}
+      <Card>
+        {isLoading ? (
+          <div style={{ padding: '4rem', display: 'flex', justifyContent: 'center' }}>
+            <Spinner size="lg" />
+          </div>
+        ) : viewMode === 'MONTH' ? (
+          <div>
+            {/* Weekday headers */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'center', padding: '0.5rem 0', fontWeight: 700, fontSize: '0.75rem', color: '#475569' }}>
+              <div>SUN</div>
+              <div>MON</div>
+              <div>TUE</div>
+              <div>WED</div>
+              <div>THU</div>
+              <div>FRI</div>
+              <div>SAT</div>
+            </div>
 
-          {/* Month Day Cells */}
-          {Array.from({ length: daysInMonth }).map((_, idx) => {
-            const dayNum = idx + 1;
-            const dateKey = formatCellDate(dayNum);
-            const isToday =
-              new Date().toISOString().split('T')[0] === dateKey;
+            {/* Grid days */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderLeft: '1px solid #e2e8f0' }}>
+              {/* Empty offset cells */}
+              {Array.from({ length: firstDayIndex }).map((_, i) => (
+                <div key={`empty-${i}`} style={{ minHeight: '110px', backgroundColor: '#f8fafc', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }} />
+              ))}
 
-            // Events on this day
-            const eventsOnDay =
-              calendarData?.events?.filter((ev: any) => {
-                return dateKey >= ev.startDate && dateKey <= ev.endDate;
-              }) || [];
+              {/* Month Days */}
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const day = i + 1;
+                const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const dayEvents = events.filter((e) => e.start <= dateKey && e.end >= dateKey);
+                const isToday = new Date().toISOString().split('T')[0] === dateKey;
 
-            // Public Holidays on this day
-            const holiday = calendarData?.holidays?.find((h: any) => h.date === dateKey);
-
-            return (
-              <div
-                key={`day-${dayNum}`}
-                className={`min-h-[110px] p-2 rounded-xl border transition-all flex flex-col justify-between ${
-                  isToday
-                    ? 'border-blue-500 bg-blue-50/30 dark:bg-blue-950/20 dark:border-blue-700 shadow-sm'
-                    : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700'
-                }`}
-              >
-                {/* Cell Header */}
-                <div className="flex items-center justify-between">
-                  <span
-                    className={`text-xs font-bold ${
-                      isToday
-                        ? 'w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]'
-                        : 'text-slate-700 dark:text-slate-300'
-                    }`}
+                return (
+                  <div
+                    key={`day-${day}`}
+                    style={{
+                      minHeight: '110px',
+                      padding: '0.5rem',
+                      borderRight: '1px solid #e2e8f0',
+                      borderBottom: '1px solid #e2e8f0',
+                      backgroundColor: isToday ? '#eff6ff' : '#ffffff',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.25rem',
+                    }}
                   >
-                    {dayNum}
-                  </span>
-                  {holiday && (
-                    <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-1.5 py-0.5 rounded truncate max-w-[80px]">
-                      🇰🇪 {holiday.name}
-                    </span>
-                  )}
-                </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: isToday ? 800 : 600, color: isToday ? '#2563eb' : '#334155' }}>
+                        {day}
+                      </span>
+                      {dayEvents.length > 0 && (
+                        <span style={{ fontSize: '0.65rem', backgroundColor: '#e2e8f0', color: '#475569', borderRadius: '10px', padding: '0.1rem 0.35rem', fontWeight: 700 }}>
+                          {dayEvents.length}
+                        </span>
+                      )}
+                    </div>
 
-                {/* Leave Items Stack */}
-                <div className="space-y-1 my-1 overflow-y-auto max-h-[75px]">
-                  {eventsOnDay.map((ev: any) => (
-                    <Link
-                      key={ev.id}
-                      href={`/leave/requests?id=${ev.id}`}
-                      className="block text-[10px] p-1 rounded font-medium truncate transition-opacity hover:opacity-80"
-                      style={{
-                        backgroundColor: `${ev.color}20`,
-                        color: ev.color,
-                        borderLeft: `2.5px solid ${ev.color}`,
-                      }}
-                      title={`${ev.employeeName} - ${ev.leaveTypeName} (${ev.department})`}
-                    >
-                      <span className="font-semibold">{ev.employeeName.split(' ')[0]}</span> • {ev.leaveTypeName}
-                    </Link>
-                  ))}
-                </div>
-
-                {/* Cell Footer Count */}
-                <div className="text-[10px] text-slate-400 text-right">
-                  {eventsOnDay.length > 0 && `${eventsOnDay.length} on leave`}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', overflowY: 'auto', maxHeight: '80px' }}>
+                      {dayEvents.map((ev) => (
+                        <div
+                          key={ev.id}
+                          style={{
+                            fontSize: '0.65rem',
+                            padding: '0.15rem 0.35rem',
+                            borderRadius: '0.25rem',
+                            backgroundColor: ev.color ? `${ev.color}15` : '#eff6ff',
+                            color: ev.color || '#2563eb',
+                            borderLeft: `2px solid ${ev.color || '#2563eb'}`,
+                            fontWeight: 600,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                          title={`${ev.employeeName} (${ev.departmentName}): ${ev.leaveTypeName}`}
+                        >
+                          {ev.employeeName.split(' ')[0]} &bull; {ev.leaveTypeName}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left', color: '#475569' }}>
+                  <th style={{ padding: '0.75rem 1rem', fontWeight: 700 }}>Employee</th>
+                  <th style={{ padding: '0.75rem 1rem', fontWeight: 700 }}>Department</th>
+                  <th style={{ padding: '0.75rem 1rem', fontWeight: 700 }}>Leave Category</th>
+                  <th style={{ padding: '0.75rem 1rem', fontWeight: 700 }}>Dates</th>
+                  <th style={{ padding: '0.75rem 1rem', fontWeight: 700, textAlign: 'center' }}>Working Days</th>
+                  <th style={{ padding: '0.75rem 1rem', fontWeight: 700, textAlign: 'center' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {events.map((ev) => (
+                  <tr key={ev.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#0f172a' }}>
+                      {ev.employeeName}
+                      <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 400, color: '#64748b' }}>
+                        {ev.employeeNumber}
+                      </span>
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem', color: '#64748b' }}>{ev.departmentName}</td>
+                    <td style={{ padding: '0.75rem 1rem' }}>
+                      <Badge variant="neutral" size="sm">{ev.leaveTypeName}</Badge>
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>
+                      {ev.start} to {ev.end}
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: 700 }}>
+                      {ev.durationDays}d
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                      <Badge variant={ev.status === 'APPROVED' ? 'success' : 'warning'} size="sm">
+                        {ev.status}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

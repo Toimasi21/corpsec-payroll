@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       auth.session.userId
     );
 
-    return apiSuccess({ communication: comm }, 201);
+    return apiSuccess({ communication: comm }, undefined, 201);
   } catch (error: any) {
     console.error('Error adding communication log:', error);
     return apiBadRequest(error.message || 'Failed to add communication log');

@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
       auth.session.userId
     );
 
-    return apiSuccess({ vacancy }, 201);
+    return apiSuccess({ vacancy }, undefined, 201);
   } catch (error: any) {
     console.error('Error creating vacancy:', error);
     return apiBadRequest(error.message || 'Failed to create vacancy');

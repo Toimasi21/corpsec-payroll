@@ -137,7 +137,7 @@ export class HiringService {
           effectiveFrom: startDate,
           status: 'ACTIVE',
           changeReason: 'Initial appointment from recruitment conversion',
-          approvedBy: currentUserId,
+          approvedById: currentUserId,
           approvedAt: new Date(),
         },
       });
@@ -186,7 +186,7 @@ export class HiringService {
     try {
       onboardingCase = await EmployeeLifecycleService.initiateOnboarding({
         employeeId: result.id,
-        assignedToId: currentUserId || candidate.assignedRecruiterId,
+        assignedToId: currentUserId || candidate.assignedRecruiterId || undefined,
         notes: `Automatically initiated from Candidate Hiring conversion (${candidate.applicationNumber} - ${candidate.fullName})`,
       });
     } catch (e: any) {
@@ -197,9 +197,14 @@ export class HiringService {
       await createAuditLog({
         userId: currentUserId,
         action: 'CANDIDATE_HIRE_CONVERT',
+        module: 'RECRUITMENT',
         entityType: 'RECRUITMENT',
         entityId: candidate.id,
-        description: `Hired candidate ${candidate.applicationNumber} -> Created Employee ${result.employeeNumber} (${result.fullName})`,
+        newValue: {
+          employeeNumber: result.employeeNumber,
+          fullName: result.fullName,
+          basicSalary,
+        },
       });
     }
 

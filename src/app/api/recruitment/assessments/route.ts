@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       auth.session.userId
     );
 
-    return apiSuccess({ assessment }, 201);
+    return apiSuccess({ assessment }, undefined, 201);
   } catch (error: any) {
     console.error('Error recording assessment:', error);
     return apiBadRequest(error.message || 'Failed to record assessment');

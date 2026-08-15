@@ -44,11 +44,16 @@ export interface CreateAuditLogParams {
   userId?: string | null;
   userEmail?: string | null;
   action: string;
-  module: string;
+  module?: string;
+  resource?: string;
   entityType?: string;
   entityId?: string;
+  resourceId?: string;
+  details?: any;
   previousValue?: any;
+  oldValues?: any;
   newValue?: any;
+  newValues?: any;
   ipAddress?: string;
   userAgent?: string;
 }
@@ -80,21 +85,44 @@ export async function createAuditLog(params: CreateAuditLogParams): Promise<void
       }
     }
 
-    const prevJson = params.previousValue
-      ? JSON.stringify(sanitizeForAudit(params.previousValue))
+    let validUserId: string | null = null;
+    let validUserEmail = params.userEmail || null;
+
+    if (params.userId) {
+      const userExists = await db.user.findUnique({
+        where: { id: params.userId },
+        select: { id: true, email: true },
+      });
+      if (userExists) {
+        validUserId = userExists.id;
+        if (!validUserEmail) validUserEmail = userExists.email;
+      } else {
+        const emp = await db.employee.findUnique({
+          where: { id: params.userId },
+          select: { userId: true, user: { select: { email: true } } },
+        });
+        if (emp?.userId) {
+          validUserId = emp.userId;
+          if (!validUserEmail) validUserEmail = emp.user?.email || null;
+        }
+      }
+    }
+
+    const prevJson = params.previousValue || params.oldValues
+      ? JSON.stringify(sanitizeForAudit(params.previousValue || params.oldValues))
       : null;
-    const newJson = params.newValue
-      ? JSON.stringify(sanitizeForAudit(params.newValue))
+    const newJson = params.newValue || params.newValues
+      ? JSON.stringify(sanitizeForAudit(params.newValue || params.newValues))
       : null;
 
     await db.auditLog.create({
       data: {
-        userId: params.userId || null,
-        userEmail: params.userEmail || null,
+        userId: validUserId,
+        userEmail: validUserEmail,
         action: params.action.toUpperCase(),
-        module: params.module.toUpperCase(),
-        entityType: params.entityType || null,
-        entityId: params.entityId || null,
+        module: (params.module || params.resource || 'SYSTEM').toUpperCase(),
+        entityType: params.entityType || params.resource || null,
+        entityId: params.entityId || params.resourceId || null,
         previousValue: prevJson,
         newValue: newJson,
         ipAddress: clientIp,
@@ -108,4 +136,8 @@ export async function createAuditLog(params: CreateAuditLogParams): Promise<void
 }
 
 export const logAudit = createAuditLog;
+
+export const AuditService = {
+  log: createAuditLog,
+};
 

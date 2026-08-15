@@ -1,92 +1,117 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth';
+import { ClockService } from '@/lib/attendance/ClockService';
+import { BreakService } from '@/lib/attendance/BreakService';
 import { db } from '@/lib/db';
-import { resolveSessionEmployee } from '@/lib/portal/PortalAuth';
-import { apiSuccess, apiError } from '@/lib/response';
 
-export const dynamic = 'force-dynamic';
-
-export async function GET(request: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
-    const authContext = await resolveSessionEmployee();
-    if ('errorResponse' in authContext) {
-      return authContext.errorResponse;
+    const user = await getCurrentUser(req);
+    if (!user || !user.employeeId) {
+      return NextResponse.json({ success: false, error: 'Unauthorized: Employee profile required.' }, { status: 401 });
     }
 
-    const { employee } = authContext;
-    const { searchParams } = new URL(request.url);
+    const [todayStatus, history, timesheets, overtimes, corrections] = await Promise.all([
+      ClockService.getTodayStatus(user.employeeId),
+      db.attendanceRecord.findMany({
+        where: { employeeId: user.employeeId },
+        orderBy: { date: 'desc' },
+        take: 30,
+        include: { scheduledShift: true },
+      }),
+      db.timesheet.findMany({
+        where: { employeeId: user.employeeId },
+        orderBy: { periodStart: 'desc' },
+        take: 12,
+      }),
+      db.overtimeRecord.findMany({
+        where: { employeeId: user.employeeId },
+        orderBy: { date: 'desc' },
+        take: 20,
+      }),
+      db.attendanceAdjustment.findMany({
+        where: { employeeId: user.employeeId },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      }),
+    ]);
 
-    const now = new Date();
-    const month = parseInt(searchParams.get('month') || String(now.getMonth() + 1), 10);
-    const year = parseInt(searchParams.get('year') || String(now.getFullYear()), 10);
-
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0, 23, 59, 59);
-
-    const records = await db.attendanceRecord.findMany({
-      where: {
-        employeeId: employee.id,
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-      orderBy: {
-        date: 'desc',
-      },
-      include: {
-        scheduledShift: true,
-      },
-    });
-
-    let daysPresent = 0;
-    let daysAbsent = 0;
-    let daysLate = 0;
-    let totalWorkedHours = 0;
-    let totalOvertimeHours = 0;
-
-    const formattedRecords = records.map((r) => {
-      const workedHours = r.workedMinutes ? Math.round((r.workedMinutes / 60) * 10) / 10 : 0;
-      const overtimeHours = r.overtimeMinutes ? Math.round((r.overtimeMinutes / 60) * 10) / 10 : 0;
-
-      if (r.attendanceStatus === 'PRESENT' || r.attendanceStatus === 'ON_DUTY' || r.attendanceStatus === 'PRESENT_WITH_OVERTIME') {
-        daysPresent++;
-      } else if (r.attendanceStatus === 'ABSENT') {
-        daysAbsent++;
-      } else if (r.attendanceStatus === 'LATE') {
-        daysPresent++;
-        daysLate++;
-      }
-
-      totalWorkedHours += workedHours;
-      totalOvertimeHours += overtimeHours;
-
-      return {
-        id: r.id,
-        date: r.date,
-        status: r.attendanceStatus,
-        clockInTime: r.actualClockIn,
-        clockOutTime: r.actualClockOut,
-        totalHours: workedHours,
-        overtimeHours,
-        shift: r.scheduledShift,
-        approvalStatus: r.approvalStatus,
-      };
-    });
-
-    return apiSuccess({
-      records: formattedRecords,
-      summary: {
-        month,
-        year,
-        daysPresent,
-        daysAbsent,
-        daysLate,
-        totalWorkedHours: Math.round(totalWorkedHours * 10) / 10,
-        totalOvertimeHours: Math.round(totalOvertimeHours * 10) / 10,
+    return NextResponse.json({
+      success: true,
+      data: {
+        todayStatus,
+        history,
+        timesheets,
+        overtimes,
+        corrections,
       },
     });
   } catch (error: any) {
-    console.error('Error fetching employee attendance:', error);
-    return apiError(error.message || 'Failed to load employee attendance records');
+    console.error('Error fetching portal attendance:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const user = await getCurrentUser(req);
+    if (!user || !user.employeeId) {
+      return NextResponse.json({ success: false, error: 'Unauthorized: Employee profile required.' }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const action = body.action || 'CLOCK_IN';
+
+    let result;
+    switch (action) {
+      case 'CLOCK_IN':
+        result = await ClockService.clockIn({
+          employeeId: user.employeeId,
+          timestamp: body.timestamp,
+          source: 'PORTAL',
+          notes: body.notes,
+          isRemote: body.isRemote,
+          remoteLocationDescription: body.remoteLocationDescription,
+          createdById: user.id,
+        });
+        break;
+
+      case 'CLOCK_OUT':
+        result = await ClockService.clockOut({
+          employeeId: user.employeeId,
+          timestamp: body.timestamp,
+          source: 'PORTAL',
+          notes: body.notes,
+          createdById: user.id,
+        });
+        break;
+
+      case 'BREAK_START':
+        result = await BreakService.startBreak(user.employeeId, {
+          source: 'PORTAL',
+          notes: body.notes,
+          createdById: user.id,
+        });
+        break;
+
+      case 'BREAK_END':
+        result = await BreakService.endBreak(user.employeeId, {
+          source: 'PORTAL',
+          notes: body.notes,
+          createdById: user.id,
+        });
+        break;
+
+      default:
+        return NextResponse.json({ success: false, error: `Unsupported action: ${action}` }, { status: 400 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: result,
+    }, { status: 200 });
+  } catch (error: any) {
+    console.error('Error in portal clocking action:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
   }
 }

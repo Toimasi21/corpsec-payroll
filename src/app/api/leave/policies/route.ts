@@ -1,95 +1,43 @@
-import { NextRequest } from 'next/server';
-import { db } from '@/lib/db';
-import { requireAuth, errorResponse, successResponse } from '@/lib/auth-helpers';
-import { leavePolicySchema } from '@/lib/validation';
-import { logAudit } from '@/lib/audit';
+import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser, hasAnyRole } from '@/lib/auth';
+import { LeavePolicyService } from '@/lib/leave/LeavePolicyService';
 
 export async function GET(req: NextRequest) {
   try {
-    await requireAuth(['leave.view']);
+    const user = await getCurrentUser(req);
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
+    const leaveTypeId = searchParams.get('leaveTypeId') || undefined;
+    const status = searchParams.get('status') || undefined;
+    const search = searchParams.get('search') || undefined;
 
-    const leaveTypeId = searchParams.get('leaveTypeId');
-    const status = searchParams.get('status');
-
-    const where: any = { deletedAt: null };
-    if (leaveTypeId) where.leaveTypeId = leaveTypeId;
-    if (status) where.status = status;
-
-    const policies = await db.leavePolicy.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        leaveType: {
-          select: { id: true, code: true, name: true, color: true },
-        },
-      },
-    });
-
-    return successResponse(policies);
+    const policies = await LeavePolicyService.listPolicies({ leaveTypeId, status, search });
+    return NextResponse.json({ success: true, data: { policies } });
   } catch (error: any) {
-    if (error.status) return errorResponse(error.message, error.status);
-    console.error('Fetch leave policies error:', error);
-    return errorResponse('Failed to fetch leave policies.');
+    console.error('Error listing leave policies:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await requireAuth(['leave.manage_policies']);
+    const user = await getCurrentUser(req);
+    if (!user || !hasAnyRole(user, ['super_admin', 'hr_admin', 'hr_manager'])) {
+      return NextResponse.json({ success: false, error: 'Forbidden: Insufficient privileges.' }, { status: 403 });
+    }
+
     const body = await req.json();
-
-    const parsed = leavePolicySchema.safeParse(body);
-    if (!parsed.success) {
-      return errorResponse('Validation failed', 400, parsed.error.flatten().fieldErrors);
-    }
-
-    const existingCode = await db.leavePolicy.findUnique({
-      where: { policyCode: parsed.data.policyCode },
-    });
-    if (existingCode && !existingCode.deletedAt) {
-      return errorResponse(`Policy with code '${parsed.data.policyCode}' already exists.`, 409);
-    }
-
-    const policy = await db.leavePolicy.create({
-      data: {
-        leaveTypeId: parsed.data.leaveTypeId,
-        policyName: parsed.data.policyName,
-        policyCode: parsed.data.policyCode,
-        entitledDays: parsed.data.entitledDays,
-        accrualMethod: parsed.data.accrualMethod,
-        accrualFrequency: parsed.data.accrualFrequency,
-        allowCarryForward: parsed.data.allowCarryForward,
-        maxCarryForwardDays: parsed.data.maxCarryForwardDays,
-        carryForwardExpiryMonths: parsed.data.carryForwardExpiryMonths,
-        minServiceDays: parsed.data.minServiceDays,
-        prorationRule: parsed.data.prorationRule,
-        excludeWeekends: parsed.data.excludeWeekends,
-        excludeHolidays: parsed.data.excludeHolidays,
-        allowAdvanceLeave: parsed.data.allowAdvanceLeave,
-        maxAdvanceDays: parsed.data.maxAdvanceDays,
-        effectiveDate: parsed.data.effectiveDate ? new Date(parsed.data.effectiveDate) : new Date(),
-        status: parsed.data.status,
-      },
-      include: {
-        leaveType: true,
-      },
+    const policy = await LeavePolicyService.createPolicy({
+      ...body,
+      createdById: user.id,
     });
 
-    await logAudit({
-      userId: session.user.id,
-      userEmail: session.user.email,
-      action: 'CREATE_LEAVE_POLICY',
-      module: 'LEAVE',
-      entityType: 'LeavePolicy',
-      entityId: policy.id,
-      newValue: policy,
-    });
-
-    return successResponse(policy, 'Leave policy created successfully.', 201);
+    return NextResponse.json({ success: true, data: { policy } }, { status: 201 });
   } catch (error: any) {
-    if (error.status) return errorResponse(error.message, error.status);
-    console.error('Create leave policy error:', error);
-    return errorResponse('Failed to create leave policy.');
+    console.error('Error creating leave policy:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
   }
 }

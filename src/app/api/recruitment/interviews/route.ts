@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
       auth.session.userId
     );
 
-    return apiSuccess({ interview }, 201);
+    return apiSuccess({ interview }, undefined, 201);
   } catch (error: any) {
     console.error('Error scheduling interview:', error);
     return apiBadRequest(error.message || 'Failed to schedule interview');

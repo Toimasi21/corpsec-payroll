@@ -12,7 +12,7 @@ export async function POST(
     if ('errorResponse' in auth) return auth.errorResponse;
 
     const cloned = await VacancyService.duplicateVacancy(params.id, auth.session.userId);
-    return apiSuccess({ vacancy: cloned }, 201);
+    return apiSuccess({ vacancy: cloned }, undefined, 201);
   } catch (error: any) {
     console.error('Error duplicating vacancy:', error);
     return apiError(error.message || 'Failed to duplicate vacancy');

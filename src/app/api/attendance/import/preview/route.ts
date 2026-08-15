@@ -1,24 +1,29 @@
-import { NextRequest } from 'next/server';
-import { requireAuth } from '@/lib/permissions';
-import { apiBadRequest, apiError, apiSuccess } from '@/lib/response';
+import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth';
 import { AttendanceImportService } from '@/lib/attendance/AttendanceImportService';
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireAuth('attendance.import');
-    if ('errorResponse' in auth) return auth.errorResponse;
-
-    const body = await req.json();
-    const { csvContent } = body;
-
-    if (!csvContent || typeof csvContent !== 'string') {
-      return apiBadRequest('csvContent string is required');
+    const user = await getCurrentUser(req);
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const preview = await AttendanceImportService.validateAndPreview(csvContent);
-    return apiSuccess(preview);
+    const body = await req.json();
+    const csvContent = body.csvText || '';
+    if (!csvContent) {
+      return NextResponse.json({ success: false, error: 'csvText is required' }, { status: 400 });
+    }
+
+    const parsedRows = AttendanceImportService.parseCsv(csvContent);
+    const preview = await AttendanceImportService.previewImport(parsedRows);
+
+    return NextResponse.json({
+      success: true,
+      data: preview,
+    });
   } catch (error: any) {
-    console.error('Error in attendance import preview:', error);
-    return apiError(error.message || 'Failed to preview CSV');
+    console.error('Error previewing attendance import:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
   }
 }

@@ -56,6 +56,7 @@ export async function POST(
         },
         message: 'Your application has been received successfully.',
       },
+      undefined,
       201
     );
   } catch (error: any) {

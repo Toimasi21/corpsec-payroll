@@ -4,9 +4,10 @@ import React from 'react';
 
 export interface BadgeProps {
   children: React.ReactNode;
-  variant?: 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'gold';
+  variant?: 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'gold' | 'secondary' | 'default' | 'outline';
   size?: 'sm' | 'md';
   dot?: boolean;
+  className?: string;
   style?: React.CSSProperties;
 }
 
@@ -15,8 +16,14 @@ export function Badge({
   variant = 'neutral',
   size = 'md',
   dot = false,
+  className = '',
   style,
 }: BadgeProps) {
+  const normalizedVariant =
+    variant === 'secondary' || variant === 'default' || variant === 'outline'
+      ? 'neutral'
+      : variant;
+
   const dotColor = {
     success: '#10b981',
     warning: '#f59e0b',
@@ -24,7 +31,7 @@ export function Badge({
     info: '#3b82f6',
     neutral: '#64748b',
     gold: '#b88628',
-  }[variant];
+  }[normalizedVariant];
 
   const sizeStyle =
     size === 'sm'
@@ -32,7 +39,7 @@ export function Badge({
       : { fontSize: '0.75rem', padding: '0.2rem 0.6rem' };
 
   return (
-    <span className={`badge badge-${variant}`} style={{ ...sizeStyle, ...style }}>
+    <span className={`badge badge-${normalizedVariant} ${className}`} style={{ ...sizeStyle, ...style }}>
       {dot && (
         <span
           style={{

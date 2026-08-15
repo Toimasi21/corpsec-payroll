@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       auth.session.userId
     );
 
-    return apiSuccess({ note: createdNote }, 201);
+    return apiSuccess({ note: createdNote }, undefined, 201);
   } catch (error: any) {
     console.error('Error adding internal recruiter note:', error);
     return apiBadRequest(error.message || 'Failed to add note');

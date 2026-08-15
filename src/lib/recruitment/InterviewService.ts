@@ -99,9 +99,10 @@ export class InterviewService {
       await createAuditLog({
         userId: createdById,
         action: 'INTERVIEW_SCHEDULE',
+        module: 'RECRUITMENT',
         entityType: 'RECRUITMENT',
         entityId: interview.id,
-        description: `Scheduled ${interview.interviewType} interview for candidate ${candidate.applicationNumber} on ${input.startTime}`,
+        newValue: { interviewType: interview.interviewType, scheduledDate: input.scheduledDate },
       });
     }
 
@@ -132,9 +133,10 @@ export class InterviewService {
       await createAuditLog({
         userId,
         action: 'INTERVIEW_STATUS_UPDATE',
+        module: 'RECRUITMENT',
         entityType: 'RECRUITMENT',
         entityId: id,
-        description: `Updated interview status to ${status} for ${interview.candidate.fullName}`,
+        newValue: { status },
       });
     }
 
@@ -148,54 +150,32 @@ export class InterviewService {
     });
     if (!interview) throw new Error('Interview not found');
 
-    // Create or update scorecard items for this interviewer
-    for (const item of input.scores) {
-      await db.interviewScorecard.upsert({
-        where: {
-          interviewId_interviewerId_category: {
-            interviewId: input.interviewId,
-            interviewerId: input.interviewerId,
-            category: item.category,
-          },
-        },
-        update: {
-          score: item.score,
-          comment: item.comment,
-        },
-        create: {
+    // Create or update scorecard entries
+    for (const sc of input.scores) {
+      await db.interviewScorecard.create({
+        data: {
           interviewId: input.interviewId,
           interviewerId: input.interviewerId,
-          category: item.category,
-          score: item.score,
-          comment: item.comment,
+          category: sc.category,
+          score: sc.score,
+          comment: sc.comment,
         },
       });
     }
 
-    // Compute average score across submitted categories
-    const totalScore = input.scores.reduce((acc, curr) => acc + curr.score, 0);
-    const avgScore = input.scores.length > 0 ? Number((totalScore / input.scores.length).toFixed(2)) : undefined;
+    // Compute average score
+    const total = input.scores.reduce((acc, curr) => acc + curr.score, 0);
+    const avgScore = parseFloat((total / input.scores.length).toFixed(1));
 
-    // Update panel member recommendation
-    await db.interviewPanelMember.upsert({
+    // Update panel member record
+    await db.interviewPanelMember.updateMany({
       where: {
-        interviewId_interviewerId: {
-          interviewId: input.interviewId,
-          interviewerId: input.interviewerId,
-        },
-      },
-      update: {
-        recommendation: input.overallRecommendation,
-        overallScore: avgScore,
-        comments: input.panelComments,
-        submittedAt: new Date(),
-      },
-      create: {
         interviewId: input.interviewId,
         interviewerId: input.interviewerId,
-        role: 'Interviewer',
-        recommendation: input.overallRecommendation,
+      },
+      data: {
         overallScore: avgScore,
+        recommendation: input.overallRecommendation,
         comments: input.panelComments,
         submittedAt: new Date(),
       },
@@ -205,9 +185,10 @@ export class InterviewService {
       await createAuditLog({
         userId: currentUserId,
         action: 'SCORECARD_SUBMIT',
+        module: 'RECRUITMENT',
         entityType: 'RECRUITMENT',
         entityId: input.interviewId,
-        description: `Submitted interview scorecard for ${interview.candidate.fullName} (Score: ${avgScore}, Rec: ${input.overallRecommendation || 'N/A'})`,
+        newValue: { avgScore, recommendation: input.overallRecommendation },
       });
     }
 
@@ -240,9 +221,10 @@ export class InterviewService {
       await createAuditLog({
         userId: createdById,
         action: 'ASSESSMENT_RECORD',
+        module: 'RECRUITMENT',
         entityType: 'RECRUITMENT',
         entityId: assessment.id,
-        description: `Recorded assessment "${input.title}" for ${candidate.fullName}: ${input.result} (Score: ${input.score}/${input.maxScore || 100})`,
+        newValue: { title: input.title, result: input.result, score: input.score },
       });
     }
 

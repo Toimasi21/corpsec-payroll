@@ -1,37 +1,77 @@
-import { NextRequest } from 'next/server';
-import { requireAuth } from '@/lib/permissions';
-import { apiBadRequest, apiError, apiSuccess } from '@/lib/response';
-import { AttendanceService } from '@/lib/attendance/AttendanceService';
+import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth';
+import { ClockService } from '@/lib/attendance/ClockService';
+import { BreakService } from '@/lib/attendance/BreakService';
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireAuth('attendance.create');
-    if ('errorResponse' in auth) return auth.errorResponse;
-
-    const body = await req.json();
-    const { employeeId, eventType, source = 'ADMIN', notes, customDate } = body;
-
-    if (!employeeId || !eventType) {
-      return apiBadRequest('employeeId and eventType (CLOCK_IN / CLOCK_OUT) are required');
+    const user = await getCurrentUser(req);
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const ipAddress = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1';
-    const deviceInfo = req.headers.get('user-agent') || 'Browser';
+    const body = await req.json();
+    const action = body.action || 'CLOCK_IN';
+    const employeeId = body.employeeId || user.employeeId;
 
-    const result = await AttendanceService.processClockEvent({
-      employeeId,
-      eventType,
-      source,
-      ipAddress,
-      deviceInfo,
-      notes,
-      createdById: auth.session.userId,
-      customDate: customDate ? new Date(customDate) : undefined,
+    if (!employeeId) {
+      return NextResponse.json({ success: false, error: 'Target Employee ID is required.' }, { status: 400 });
+    }
+
+    let result;
+    switch (action) {
+      case 'CLOCK_IN':
+        result = await ClockService.clockIn({
+          employeeId,
+          timestamp: body.timestamp,
+          source: body.source || 'WEB',
+          deviceInfo: body.deviceInfo,
+          ipAddress: body.ipAddress,
+          notes: body.notes,
+          isRemote: body.isRemote,
+          remoteLocationDescription: body.remoteLocationDescription,
+          createdById: user.id,
+        });
+        break;
+
+      case 'CLOCK_OUT':
+        result = await ClockService.clockOut({
+          employeeId,
+          timestamp: body.timestamp,
+          source: body.source || 'WEB',
+          deviceInfo: body.deviceInfo,
+          ipAddress: body.ipAddress,
+          notes: body.notes,
+          createdById: user.id,
+        });
+        break;
+
+      case 'BREAK_START':
+        result = await BreakService.startBreak(employeeId, {
+          source: body.source || 'WEB',
+          notes: body.notes,
+          createdById: user.id,
+        });
+        break;
+
+      case 'BREAK_END':
+        result = await BreakService.endBreak(employeeId, {
+          source: body.source || 'WEB',
+          notes: body.notes,
+          createdById: user.id,
+        });
+        break;
+
+      default:
+        return NextResponse.json({ success: false, error: `Unsupported clock action: ${action}` }, { status: 400 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: result,
     });
-
-    return apiSuccess(result);
   } catch (error: any) {
-    console.error('Error in attendance clock route:', error);
-    return apiError(error.message || 'Failed to process clock event');
+    console.error('Error processing attendance clock action:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
   }
 }

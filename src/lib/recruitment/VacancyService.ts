@@ -88,9 +88,10 @@ export class VacancyService {
       await createAuditLog({
         userId: createdById,
         action: 'VACANCY_CREATE',
+        module: 'RECRUITMENT',
         entityType: 'RECRUITMENT',
         entityId: vacancy.id,
-        description: `Created vacancy ${vacancy.vacancyNumber}: ${vacancy.title} (${vacancy.status})`,
+        newValue: { vacancyNumber: vacancy.vacancyNumber, title: vacancy.title, status: vacancy.status },
       });
     }
 
@@ -126,9 +127,11 @@ export class VacancyService {
       await createAuditLog({
         userId: updatedById,
         action: 'VACANCY_UPDATE',
+        module: 'RECRUITMENT',
         entityType: 'RECRUITMENT',
         entityId: id,
-        description: `Updated vacancy ${updated.vacancyNumber} (${updated.status})`,
+        previousValue: { status: existing.status },
+        newValue: { status: updated.status },
       });
     }
 
@@ -174,9 +177,10 @@ export class VacancyService {
       await createAuditLog({
         userId,
         action: 'VACANCY_DUPLICATE',
+        module: 'RECRUITMENT',
         entityType: 'RECRUITMENT',
         entityId: cloned.id,
-        description: `Duplicated vacancy ${existing.vacancyNumber} to new draft ${cloned.vacancyNumber}`,
+        newValue: { originalNumber: existing.vacancyNumber, clonedNumber: cloned.vacancyNumber },
       });
     }
 

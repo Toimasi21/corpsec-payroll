@@ -289,6 +289,22 @@ async function main() {
     { name: 'recruitment.hire', module: 'RECRUITMENT', description: 'Convert accepted candidates into employees and initiate onboarding' },
     { name: 'recruitment.reports.view', module: 'RECRUITMENT', description: 'View recruitment funnel, vacancy performance, and time-to-hire reports' },
 
+    // Phase 14 Performance Management, Appraisals & KPIs Permissions
+    { name: 'performance.view', module: 'PERFORMANCE', description: 'View performance command center, cycles, KPIs, and reviews' },
+    { name: 'performance.cycles.manage', module: 'PERFORMANCE', description: 'Create, open, update, calibrate, complete, and archive performance cycles' },
+    { name: 'performance.goals.manage', module: 'PERFORMANCE', description: 'Create, approve, and track employee SMART goals' },
+    { name: 'performance.kpis.manage', module: 'PERFORMANCE', description: 'Create and configure KPI templates and assign targets' },
+    { name: 'performance.kpis.measure', module: 'PERFORMANCE', description: 'Record, update, and verify KPI achievement measurements' },
+    { name: 'performance.competencies.manage', module: 'PERFORMANCE', description: 'Manage core and leadership competency catalogs' },
+    { name: 'performance.reviews.manage', module: 'PERFORMANCE', description: 'Manage performance reviews, self-assessments, and appraisals' },
+    { name: 'performance.reviews.evaluate', module: 'PERFORMANCE', description: 'Conduct and submit manager performance reviews' },
+    { name: 'performance.calibrate', module: 'PERFORMANCE', description: 'Calibrate performance scores and ratings as authorized HR' },
+    { name: 'performance.concerns.manage', module: 'PERFORMANCE', description: 'Review and resolve employee performance disputes and concerns' },
+    { name: 'performance.development.manage', module: 'PERFORMANCE', description: 'Create and monitor Performance Improvement Plans (PIPs) and development plans' },
+    { name: 'performance.training.manage', module: 'PERFORMANCE', description: 'Manage training needs and competency development records' },
+    { name: 'performance.reports.view', module: 'PERFORMANCE', description: 'Access workforce performance analytics, departmental metrics, and export reports' },
+    { name: 'portal.performance.view', module: 'PORTAL', description: 'Access employee self-service performance appraisal, self-assessment, and career development' },
+
     { name: 'reports.view', module: 'REPORTS', description: 'View HR, attendance, payroll, and compliance reports' },
     { name: 'reports.export', module: 'REPORTS', description: 'Export reports to CSV/PDF formats' },
   ];
@@ -343,6 +359,7 @@ async function main() {
       'hr.probation.view', 'hr.probation.manage',
       'hr.analytics.view', 'hr.movement.manage', 'hr.bulk.manage',
       'recruitment.view', 'recruitment.vacancies.manage', 'recruitment.candidates.manage', 'recruitment.interviews.manage', 'recruitment.assessments.manage', 'recruitment.offers.create', 'recruitment.offers.approve', 'recruitment.hire', 'recruitment.reports.view',
+      'performance.view', 'performance.cycles.manage', 'performance.goals.manage', 'performance.kpis.manage', 'performance.kpis.measure', 'performance.competencies.manage', 'performance.reviews.manage', 'performance.reviews.evaluate', 'performance.calibrate', 'performance.concerns.manage', 'performance.development.manage', 'performance.training.manage', 'performance.reports.view', 'portal.performance.view',
       'reports.view', 'reports.export',
     ],
     payroll_officer: [
@@ -389,6 +406,7 @@ async function main() {
       'hr.probation.view', 'hr.probation.manage',
       'hr.analytics.view', 'hr.movement.manage', 'hr.bulk.manage',
       'recruitment.view', 'recruitment.vacancies.manage', 'recruitment.candidates.manage', 'recruitment.interviews.manage', 'recruitment.assessments.manage', 'recruitment.offers.create', 'recruitment.offers.approve', 'recruitment.hire', 'recruitment.reports.view',
+      'performance.view', 'performance.cycles.manage', 'performance.goals.manage', 'performance.kpis.manage', 'performance.kpis.measure', 'performance.competencies.manage', 'performance.reviews.manage', 'performance.reviews.evaluate', 'performance.calibrate', 'performance.concerns.manage', 'performance.development.manage', 'performance.training.manage', 'performance.reports.view', 'portal.performance.view',
       'reports.view', 'reports.export',
     ],
     finance: [
@@ -412,6 +430,7 @@ async function main() {
       'portal.attendance.view', 'portal.attendance.correction',
       'portal.requests.view', 'portal.requests.create',
       'portal.documents.view', 'portal.notifications.view',
+      'portal.performance.view',
       'attendance.view', 'attendance.create', 'shift.view', 'schedule.view', 'overtime.create', 'holiday.view',
       'leave.view', 'leave.create', 'leave.cancel', 'leave.documents.view', 'leave.documents.upload',
       'payslip.view', 'payslip.download', 'payroll_payment.receipt_view',

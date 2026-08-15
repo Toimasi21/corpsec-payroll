@@ -13,6 +13,7 @@ export interface CardProps {
   bodyStyle?: React.CSSProperties;
   noPadding?: boolean;
   hoverable?: boolean;
+  onClick?: (e?: any) => void;
 }
 
 export function Card({
@@ -26,6 +27,7 @@ export function Card({
   bodyStyle,
   noPadding = false,
   hoverable = false,
+  onClick,
 }: CardProps) {
   return (
     <div
@@ -40,6 +42,7 @@ export function Card({
         ...style,
       }}
       className={className}
+      onClick={onClick}
     >
       {(title || subtitle || action) && (
         <div

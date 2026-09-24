@@ -5,7 +5,28 @@ let cachedGuards = [];
 let cachedSites = [];
 let cachedAttendance = [];
 
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  if (!sidebar || !overlay) return;
+
+  sidebar.classList.toggle('open');
+  overlay.classList.toggle('show');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      if (window.innerWidth <= 768) {
+        if (sidebar) sidebar.classList.remove('open');
+        if (overlay) overlay.classList.remove('show');
+      }
+    });
+  });
+
   if (authToken) {
     initApp();
   } else {

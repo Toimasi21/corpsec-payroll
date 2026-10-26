@@ -101,6 +101,79 @@
   box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.06);
 }
 
+/* Optional PWA install prompt */
+.install-app-banner[hidden] {
+  display: none !important;
+}
+
+.install-app-banner {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 16px;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 576px;
+  margin: 0 auto;
+  padding: 12px 14px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
+}
+
+body.portal-logged-in .install-app-banner {
+  bottom: 80px;
+}
+
+.install-app-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.install-app-copy strong {
+  color: #0F172A;
+  font-size: 13px;
+}
+
+.install-app-copy span {
+  color: #64748B;
+  font-size: 11px;
+}
+
+.install-app-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.install-app-button,
+.dismiss-install-button {
+  border: 0;
+  border-radius: 9999px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 8px 12px;
+}
+
+.install-app-button {
+  background: #7C3AED;
+  color: #FFFFFF;
+}
+
+.dismiss-install-button {
+  background: #F1F5F9;
+  color: #475569;
+}
+
 .nav-tab {
   display: flex;
   flex-direction: column;
@@ -393,4 +466,20 @@
   border: 1px solid rgba(226, 232, 240, 0.9);
   box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.08);
   text-align: center;
+}
+
+@media (max-width: 420px) {
+  .install-app-banner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .install-app-actions {
+    width: 100%;
+  }
+
+  .install-app-button,
+  .dismiss-install-button {
+    flex: 1;
+  }
 }

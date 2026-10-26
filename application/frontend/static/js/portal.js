@@ -1,6 +1,8 @@
 /* CorpSec Guard Mobile Portal JavaScript Module */
 
 const API_BASE = '/api/v1';
+const INSTALL_DISMISSED_KEY = 'corpsec_guard_install_dismissed_v2';
+let deferredInstallPrompt = null;
 
 // Token & Session Storage Helpers
 function getToken() {
@@ -46,8 +48,95 @@ async function apiFetch(endpoint, options = {}) {
   return res;
 }
 
+function registerPortalServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+
+  navigator.serviceWorker.register('/portal-sw.js', { scope: '/', updateViaCache: 'none' })
+    .then(() => {
+      console.log('CorpSec Guard Portal PWA: Service worker registered');
+    })
+    .catch((err) => {
+      console.warn('Service worker registration failed:', err);
+    });
+}
+
+function isPortalStandalone() {
+  return window.matchMedia('(display-mode: standalone)').matches
+    || window.matchMedia('(display-mode: fullscreen)').matches
+    || window.matchMedia('(display-mode: minimal-ui)').matches
+    || window.navigator.standalone === true;
+}
+
+function isIosDevice() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function hideInstallBanner(rememberChoice = false) {
+  const banner = document.getElementById('install-app-banner');
+  if (banner) banner.hidden = true;
+  if (rememberChoice) localStorage.setItem(INSTALL_DISMISSED_KEY, 'true');
+}
+
+function showInstallBanner() {
+  if (isPortalStandalone()) return;
+  if (localStorage.getItem(INSTALL_DISMISSED_KEY)) return;
+  const banner = document.getElementById('install-app-banner');
+  if (banner) banner.hidden = false;
+}
+
+function showManualInstallHelp() {
+  if (isIosDevice()) {
+    alert('To install CorpSec Guard: tap the Share button, then tap “Add to Home Screen”.');
+    return;
+  }
+  alert('To install CorpSec Guard: tap the Chrome menu (⋮) and choose “Install app” or “Add to Home screen”.');
+}
+
+function setupInstallPrompt() {
+  const installButton = document.getElementById('install-app-button');
+  const dismissButton = document.getElementById('dismiss-install-button');
+
+  window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    showInstallBanner();
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    hideInstallBanner(true);
+  });
+
+  installButton?.addEventListener('click', async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      const choice = await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      if (choice.outcome === 'accepted') hideInstallBanner(true);
+      return;
+    }
+
+    showManualInstallHelp();
+  });
+
+  dismissButton?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    hideInstallBanner(true);
+  });
+
+  showInstallBanner();
+}
+
 // App Initialization
 document.addEventListener('DOMContentLoaded', () => {
+  registerPortalServiceWorker();
+  setupInstallPrompt();
+
   const token = getToken();
   if (token) {
     showPortalView();
@@ -59,6 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // View Toggle Helpers
 function showLoginView(alertMessage = null) {
+  document.body.classList.remove('portal-logged-in');
   document.getElementById('portal-header').style.display = 'none';
   document.getElementById('portal-bottom-nav').style.display = 'none';
   document.getElementById('portal-main').style.display = 'none';
@@ -75,6 +165,7 @@ function showLoginView(alertMessage = null) {
 }
 
 function showPortalView() {
+  document.body.classList.add('portal-logged-in');
   document.getElementById('login-wrapper').style.display = 'none';
   document.getElementById('portal-header').style.display = 'flex';
   document.getElementById('portal-bottom-nav').style.display = 'flex';

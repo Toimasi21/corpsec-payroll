@@ -84,13 +84,45 @@ def read_root():
 def read_guard_portal():
     portal_file = os.path.join(frontend_dir, "portal.html")
     if os.path.exists(portal_file):
-        return FileResponse(portal_file)
+        return FileResponse(
+            portal_file,
+            media_type="text/html; charset=utf-8",
+            headers={"Content-Disposition": "inline", "Cache-Control": "no-cache"},
+        )
     return {
         "system": "CorpSec Guard Portal",
         "version": settings.VERSION,
         "status": "online",
         "portal_url": "/portal",
     }
+
+
+@app.get("/manifest.json")
+def read_manifest():
+    manifest_file = os.path.join(frontend_dir, "manifest.json")
+    if os.path.exists(manifest_file):
+        return FileResponse(
+            manifest_file,
+            media_type="application/manifest+json",
+            headers={"Content-Disposition": "inline", "Cache-Control": "no-cache"},
+        )
+    return {"error": "manifest not found"}
+
+
+@app.get("/portal-sw.js")
+def read_portal_service_worker():
+    sw_file = os.path.join(frontend_dir, "portal-sw.js")
+    if os.path.exists(sw_file):
+        return FileResponse(
+            sw_file,
+            media_type="application/javascript",
+            headers={
+                "Content-Disposition": "inline",
+                "Cache-Control": "no-cache",
+                "Service-Worker-Allowed": "/",
+            },
+        )
+    return {"error": "service worker not found"}
 
 
 @app.get("/api/health")

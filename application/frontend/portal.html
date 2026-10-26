@@ -3,8 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0F172A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>CorpSec Guard Mobile Portal</title>
   <link rel="icon" type="image/x-icon" href="/static/images/favicon.ico">
+  <link rel="apple-touch-icon" href="/static/images/corpsec_pwa_192.png">
+  <link rel="manifest" href="/manifest.json">
   <link rel="stylesheet" href="/static/css/portal.css">
 </head>
 <body class="portal-body">
@@ -53,6 +58,17 @@
       <button class="btn-logout" onclick="logoutGuard()">Logout</button>
     </div>
   </header>
+
+  <aside id="install-app-banner" class="install-app-banner" role="dialog" aria-label="Install CorpSec Guard" hidden>
+    <div class="install-app-copy">
+      <strong>Install CorpSec Guard</strong>
+      <span>Quick access from your home screen</span>
+    </div>
+    <div class="install-app-actions">
+      <button id="install-app-button" class="install-app-button" type="button">Install</button>
+      <button id="dismiss-install-button" class="dismiss-install-button" type="button">Not now</button>
+    </div>
+  </aside>
 
   <!-- 3. MAIN PORTAL CONTENT AREA -->
   <main id="portal-main" class="portal-main" style="display:none;">
